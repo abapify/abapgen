@@ -5,7 +5,7 @@ type CodeUnit = object | string | Array<CodeUnit>;
 // const ARRAY_END = '.';
 
 class codegen {
-  chain_level = 0;
+  // chain_level = 0;
   array_level = 0;
   from(code: CodeUnit): string {
     return (
@@ -40,7 +40,7 @@ class codegen {
     // start of chain
     const is_chain = control_element === ':';
 
-    is_chain && this.chain_level++;
+    // is_chain && this.chain_level++;
     this.array_level++;
 
     const result = code
@@ -71,7 +71,7 @@ class codegen {
 
     this.array_level--;
 
-    is_chain && this.chain_level--;
+    // is_chain && this.chain_level--;
 
     return result;
   }

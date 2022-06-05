@@ -1,5 +1,5 @@
 import { Interface } from './keywords/interface';
-import { Type, StructuredType } from './keywords/types';
+import { Type, StructuredType, TableType } from './keywords/types';
 
 class samples {
   // simple type decalration sample
@@ -22,6 +22,8 @@ class samples {
     ],
     { end: { of: 'structured_type' } },
   ];
+  // simple table type
+  static string_table_type: TableType = { type: 'standard table', of: "string", with: "empty key"}
 
   static simple_interface: Interface = [
     { interface: 'lif_interface', public: true },
@@ -31,6 +33,7 @@ class samples {
         ':',
         { string_type2: samples.string_type_decalration },
         ...samples.structure_type,
+        { string_table: samples.string_table_type }
       ],
     },
 

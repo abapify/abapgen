@@ -46,35 +46,39 @@ export type StructuredType = Array<
   | { end: { of: string } }
 >;
 
-// export type StructuredType = [
-//   { begin: { of: string } },
-//   ...Array<Component>,
-//   // Array<StructuredType2>,
-//   { end: { of: string } }
-// ];
-
 // 5. TYPES table_type { {TYPE tabkind OF [REF TO] type}
 //                  | {LIKE tabkind OF dobj} }
 //                      [tabkeys][INITIAL SIZE n].
 type TableTypeSimple = (
   | { type: TableKind; of: string | { ref: { to: string } } }
   | { like: TableKind; of: string }
-) & { initial?: { size: number } };
-
+) & { with:"default key" | "empty key", initial?: { size: number } };
 type TableTypeWithKeys = [TableTypeSimple, TableKeys];
+export type TableType = TableTypeSimple | TableTypeWithKeys;
 
-type TableType = TableTypeSimple | TableTypeWithKeys;
+// TYPES - tabkind
+// ... { {[STANDARD] TABLE}
+//     | {SORTED TABLE}
+//     | {HASHED TABLE}
+//     | {ANY TABLE}
+//     | {INDEX TABLE} } ...
+type TableKinds = 'standard' | 'sorted' | 'hashed' | 'any' | 'index';
+type TableKindGeneric<T extends string> = `${T} table`;
+type TableKind = TableKindGeneric<TableKinds> | "table";
 
-type TableKind = {};
-
-//   ... [ WITH key ]
-//     [ WITH secondary_key1 ] [ WITH secondary_key2 ] ...
-//     [ {WITH|WITHOUT} FURTHER SECONDARY KEYS ] ...
+// //   ... [ WITH key ]
+// //     [ WITH secondary_key1 ] [ WITH secondary_key2 ] ...
+// //     [ {WITH|WITHOUT} FURTHER SECONDARY KEYS ] ...
 type TableKeys = [
-  { with: PrimaryKey },
+  { with: PrimaryKey } ,
   { with: SecondaryKey },
   Partial<Record<'with' | 'without', 'further secondary keys'>>
 ];
 
-type PrimaryKey = {};
+// // ... { [UNIQUE | NON-UNIQUE]
+// //   { {KEY [primary_key [ALIAS key_name] COMPONENTS] comp1 comp2 ...}
+// //   | {DEFAULT KEY} }  }
+// // | { EMPTY KEY } ...
+// ToDo
+type PrimaryKey = {} | "default key" | "empty key";
 type SecondaryKey = {};
