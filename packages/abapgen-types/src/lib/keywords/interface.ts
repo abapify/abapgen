@@ -1,3 +1,5 @@
+import base from './common'
+
 // 1. INTERFACE intf [PUBLIC].
 //     [components]
 //   ENDINTERFACE
@@ -6,7 +8,7 @@
 // type MultiLine = ["."|'', ...any];
 
 export type Interface = [  
-  { interface: string; deferred?: boolean; public?: boolean },
+  { interface: string; deferred?: boolean; public?: boolean } & base,
   ...InterfaceComponents[],
   'endinterface'
 ];

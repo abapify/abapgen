@@ -4,7 +4,8 @@ import test from '../../../abapgen-types/src/lib/abapgen-types.spec';
 describe('interfaces', () => {
   it('Interface defintion', () => {
     expect(abapgen(test.simple_interface)).toEqual(
-      `interface lif_interface public.
+`" test comment before
+interface lif_interface public. "test comment after
 types string_property type string.
 types:
 string_type2 type string,
