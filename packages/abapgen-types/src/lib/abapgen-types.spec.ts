@@ -32,10 +32,10 @@ class samples {
 
   static simple_interface: Interface = [
     {
-      interface: 'lif_interface',
-      public: true,
-      [$comment.after]: 'test comment after',
       [$comment.before]: 'test comment before',
+      interface: 'lif_interface',
+      public: true,      
+      [$comment.after]: 'test comment after',
     },
     { types: samples.string_property },
     {
