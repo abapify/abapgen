@@ -3,7 +3,7 @@ export class $comment {
   static readonly after: unique symbol = Symbol();
 }
 
-export interface has_comments {  
+export interface has_comments {
   [$comment.before]?: string;
   [$comment.after]?: string;
 }
@@ -103,6 +103,10 @@ class codegen {
 
     return result;
   }
+}
+
+export function abapgen(code: CodeUnit) {
+  return new codegen().from(code);
 }
 
 export default (code: CodeUnit) => new codegen().from(code);

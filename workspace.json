@@ -3,6 +3,8 @@
   "version": 2,
   "projects": {
     "abapgen": "packages/abapgen",
+    "abapgen-cli": "packages/abapgen-cli",
+    "abapgen-openapi": "packages/abapgen-openapi",
     "abapgen-types": "packages/abapgen-types"
   }
 }

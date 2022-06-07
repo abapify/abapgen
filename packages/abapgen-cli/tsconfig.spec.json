@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../dist/out-tsc",
+    "module": "commonjs",
+    "types": ["jest", "node"]
+  },
+  "include": ["../../abapgen-cli/jest.config.ts", "../../abapgen-cli/**/*.test.ts", "../../abapgen-cli/**/*.spec.ts", "../../abapgen-cli/**/*.d.ts"]
+}

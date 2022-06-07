@@ -1,1 +1,4 @@
-export * from './lib/abapgen-types';
+import * as ABAPgen  from './lib/abapgen-types';
+
+export default ABAPgen;
+

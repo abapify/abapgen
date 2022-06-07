@@ -1,0 +1,12 @@
+{
+  "name": "@abapify/abapgen-cli",
+  "version": "0.0.1",
+  "type": "commonjs",
+  "dependencies": {
+    "@apidevtools/swagger-parser": "^10.1.0",
+    "commander": "^9.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.40"
+  }
+}
