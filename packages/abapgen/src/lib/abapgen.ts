@@ -1,12 +1,4 @@
-export class $comment {
-  static readonly before: unique symbol = Symbol();
-  static readonly after: unique symbol = Symbol();
-}
-
-export interface has_comments {
-  [$comment.before]?: string;
-  [$comment.after]?: string;
-}
+import {has_comments, $comment } from '@abapify/abapgen-common';
 
 interface Options {
   end_of_line: string;
@@ -27,7 +19,7 @@ class codegen {
 
   from_object(code: object, options?: Options): string {
     // {type: "c", length: 1} => type c length 1
-    let result =
+    const result =
       Object.entries(code).reduce(
         (result, [key, value]) =>
           // if value is boolean and true - we'll just output the key

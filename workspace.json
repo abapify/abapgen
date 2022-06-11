@@ -4,6 +4,7 @@
   "projects": {
     "abapgen": "packages/abapgen",
     "abapgen-cli": "packages/abapgen-cli",
+    "abapgen-common": "packages/abapgen-common",
     "abapgen-openapi": "packages/abapgen-openapi",
     "abapgen-types": "packages/abapgen-types"
   }

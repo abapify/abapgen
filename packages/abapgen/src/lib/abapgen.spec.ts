@@ -1,5 +1,6 @@
 import abapgen from './abapgen';
 import test from '../../../abapgen-types/src/lib/abapgen-types.spec';
+//import test from '@abapify/abapgen-types/src/lib/abapgen-types.spec'
 
 describe('interfaces', () => {
   it('Interface defintion', () => {

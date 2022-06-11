@@ -17,6 +17,7 @@
     "paths": {
       "@abapify/abapgen": ["packages/abapgen/src/index.ts"],
       "@abapify/abapgen-cli": ["packages/abapgen-cli/src/index.ts"],
+      "@abapify/abapgen-common": ["packages/abapgen-common/src/index.ts"],
       "@abapify/abapgen-openapi": ["packages/abapgen-openapi/src/index.ts"],
       "@abapify/abapgen-types": ["packages/abapgen-types/src/index.ts"]
     },

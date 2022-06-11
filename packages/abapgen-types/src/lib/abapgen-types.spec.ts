@@ -1,4 +1,4 @@
-import { $comment } from '@abapify/abapgen';
+import { $comment } from '@abapify/abapgen-common';
 import { Interface } from './keywords/interface';
 import { Type, StructuredType, TableType } from './keywords/types';
 
@@ -38,8 +38,8 @@ class samples {
       [$comment.after]: 'test comment after',
     },
     { types: samples.string_property },
-    {
-      types: [
+    {types:[""]},
+    { types: [
         ':',
         { string_type2: samples.string_type_decalration },
         ...samples.structure_type,
