@@ -39,16 +39,9 @@ export default abstract class OpenapiToABAP {
       throw 'Not supported openapi version';
     }
 
-    return parser;
-  }
-}
+    await parser.resolveRefs();
 
-class CallbackMap<T> extends Map<string, ((key?: string) => T) | T> {
-  override set(key: string, callback: (key?: string) => T) {
-    if (!this.has(key)) {
-      super.set(key, callback(key));
-    }
-    return this;
+    return parser;
   }
 }
 
@@ -60,38 +53,67 @@ interface Parser {
   parse(options?: ParseOptions): void;
 }
 
-class OpenapiParser<T extends OpenAPI.Document> implements Parser {
+abstract class make {
+  static type(
+    type: string,
+    context: string
+  ): ABAPgen.Type | Record<string, ABAPgen.Type> {
+    return context ? { [$comment.before]: context, [toSnakeCase(context)]: { type } } : { type };
+  }
+  static structured_type(
+    type: string,
+    components: ABAPgen.StructuredType
+  ): ABAPgen.StructuredType {
+    const name = toSnakeCase(type);
+    return [{ [$comment.before]: type, begin: { of: name } }, components, { end: { of: name } }];
+  }
+  static ref_segments($ref: string): Array<string> {
+    return $ref.split('/').filter((p) => p !== '#');
+  }
+}
+
+class OpenapiParserBase {}
+
+class OpenapiParser<T extends OpenAPI.Document>
+  extends OpenapiParserBase
+  implements Parser
+{
   readonly openapi: T;
 
   protected readonly output: {
-    methods: Array<ABAPgen.InterfaceMethods>,
-    types: Array<ABAPgen.InterfaceTypes>
-  }
+    methods: Array<ABAPgen.InterfaceMethods>;
+    types: Array<ABAPgen.InterfaceTypes>;
+  };
 
-  private _refs: Map<string, unknown>;
-  readonly $refs: ReturnType<SwaggerParser['resolve']>;  
-  private typesMap: Map<string, Array<ABAPgen.InterfaceTypes['types']>>;
-  private structureTypesMap: Map<
+  private _refs: Set<string>;
+  protected $refs: SwaggerParser.$Refs | undefined;
+  private typesMap: Map<string, ABAPgen.Components>;
+  protected readonly structureTypesMap: Map<
     string,
     {
       structure_type: ABAPgen.StructuredType;
-      structure_components: ABAPgen.StructuredType;
+      structure_components: ABAPgen.Components;
     }
   >;
 
   constructor(openapi: T) {
+    super();
     this.openapi = openapi;
 
     this.output = {
-      methods:[],
-      types:[]
-    }
-    
-    this.$refs = SwaggerParser.resolve(openapi);
-    this._refs = new CallbackMap<unknown>();
+      methods: [],
+      types: [],
+    };
+
+    this._refs = new Set();
     this.typesMap = new Map();
     this.structureTypesMap = new Map();
   }
+
+  async resolveRefs() {
+    this.$refs = await SwaggerParser.resolve(this.openapi);
+  }
+
   get components(): ABAPgen.InterfaceComponents {
     return [this.output.methods, this.output.types].flat();
   }
@@ -109,59 +131,59 @@ class OpenapiParser<T extends OpenAPI.Document> implements Parser {
   parse() {
     throw 'Method is not implemented';
   }
-  parseRef($ref: string) {
-    this._refs.set($ref, () => {
-      // we need to update components
-      
-      let abap_type = '';
 
-      //let structure_type: ABAPgen.StructuredType;
-      let structure_components: ABAPgen.StructuredType = [];
+  createRefStructures($ref: string): void {
+    // loop variables
+    let abap_type = '';
+    let structure_components: ABAPgen.Components = [];
 
-      $ref
-        .split('/')
-        .filter((s) => s !== '#')
-        .forEach((segment, index, array) => {
+    make.ref_segments($ref).forEach((segment, index, array) => {
+      const abap_component = toSnakeCase(segment);
+      abap_type = [abap_type, abap_component].filter((s) => s).join('-');
 
-          const abap_component = toSnakeCase(segment);
-          abap_type = [abap_type, abap_component].filter((s) => s).join('-');
-          
-          // if type already exists - skip it
-          if (this.typesMap.has(abap_type)) {
-            return;
-          }
+      // if type already exists - skip it
+      if (this.typesMap.has(abap_type)) {
+        return;
+      }
 
-          // if it's not a last line - we need to create am intermediate structure type
-          if (index++ < array.length) {
-            const structure_type = structure_components;
-            structure_components = [];
+      // if it's not a last line - we need to create am intermediate structure type
+      if (index + 1 < array.length) {
+        const structure_type = structure_components;
+        structure_components = [];
 
-            // we create a structure type and components instances separately for convenience
-            // we can fetch later this type by abap name
-            structure_type.push(
-              { begin: { of: toSnakeCase(abap_component) } },
-              structure_components,
-              { end: { of: abap_type } }
-            );
+        // we create a structure type and components instances separately for convenience
+        // we can fetch later this type by abap name
+        structure_type.push(
+          ...make.structured_type(abap_component, structure_components)
+        );
 
-            // add to map
-            this.structureTypesMap.set(abap_type, {
-              structure_type,
-              structure_components,
-            });
-
-            // also let's update a regular types map
-            this.typesMap.set(abap_type, structure_type);
-
-            // add top-level structure type to output
-            if (!index) {
-              this.output.types.push({types:structure_type});
-            }            
-          }
+        // add to map
+        this.structureTypesMap.set(abap_type, {
+          structure_type,
+          structure_components,
         });
 
-      return {};
+        // also let's update a regular types map
+        this.typesMap.set(abap_type, structure_type);
+
+        // add top-level structure type to output
+        if (!index) {
+          this.output.types.push({ types: [':', structure_type] });
+        }
+      }
     });
+  }
+
+  parseReferenceType($ref: string): true | void {
+    // do not parse empty ref or already parsed
+    if (!$ref || this._refs.has($ref)) {
+      return;
+    }
+    this._refs.add($ref);
+
+    // create intermediate ref structures like components-responses..
+    this.createRefStructures($ref);
+    return true;
   }
 }
 
@@ -183,14 +205,14 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
               return;
             }
 
-            // const importing: any[] = [];
-
-            operation?.parameters?.forEach((parameter) => {
-              const reference = parameter as OpenAPIV3.ReferenceObject;
-              if (reference?.$ref) {
-                this.parseRef(reference.$ref);
-              }
-            });
+            //parse request body
+            if (operation?.requestBody) {
+              const body = this.parseRequestBody(
+                operation?.requestBody,
+                'request'
+              );
+              // body && console.log(body);
+            }
 
             this.output.methods.push({
               [$comment.before]: operationId,
@@ -199,5 +221,184 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
             });
           });
     });
+  }
+
+  parseRequestBody(
+    body: OpenAPIV3.ReferenceObject | OpenAPIV3.RequestBodyObject,
+    context: string
+  ) {
+    if (!body) {
+      return;
+    }
+    return (
+      this.parseReference(body as OpenAPIV3.ReferenceObject, context) ||
+      this.parseSchema(
+        (body as OpenAPIV3.RequestBodyObject)?.content['application/json']
+          ?.schema,
+        context
+      )
+    );
+  }
+
+  parseResponse(
+    response: OpenAPIV3.ReferenceObject | OpenAPIV3.ResponseObject | undefined,
+    context: string
+  ): ABAPgen.Component | ABAPgen.Type | void {
+    if (!response) {
+      return;
+    }
+
+    return (
+      this.parseReference(response as OpenAPIV3.ReferenceObject, context) ||
+      (response &&
+        this.parseSchema(
+          (response as OpenAPIV3.ResponseObject)?.content?.['application/json']
+            ?.schema,
+          context
+        ))
+    );
+  }
+  parseSchema(
+    schema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject | void,
+    context: string
+  ): ABAPgen.Type | ABAPgen.StructuredType | void | ABAPgen.Component {
+    if (!schema) {
+      return;
+    }
+    return (
+      this.parseReference(schema as OpenAPIV3.ReferenceObject, context) ||
+      this.parseArray(schema as OpenAPIV3.ArraySchemaObject, context) ||
+      this.parseNonArray(schema as OpenAPIV3.NonArraySchemaObject, context)
+    );
+  }
+  parseArray(
+    array: OpenAPIV3.ArraySchemaObject,
+    context: string
+  ): ABAPgen.Type | ABAPgen.StructuredType | void {
+    if (array?.type !== 'array') {
+      return;
+    }
+    return (
+      this.parseReference(array.items as OpenAPIV3.ReferenceObject, context) ||
+      this.parseSchema(array.items as OpenAPIV3.SchemaObject, context)
+    );
+  }
+  parseNonArray(
+    object: OpenAPIV3.NonArraySchemaObject,
+    context: string
+  ): ABAPgen.Type | ABAPgen.StructuredType | void {
+    if (!object) {
+      return;
+    }
+
+    switch (object.type) {
+      case 'object':
+        return this.parseObject(object, context);
+    }
+
+    const type = this.getABAPtype(object);
+    if (type) {
+      return make.type(type, context);
+    }
+  }
+
+  getABAPtype(object: OpenAPIV3.NonArraySchemaObject): string | void {
+    switch (object.type) {
+      case 'boolean':
+        return `xsdboolean`;
+      case 'integer':
+        return object.format && ['int32', 'int64'].includes(object.format)
+          ? 'string'
+          : 'i';
+      case 'number':
+        return `string`;
+      case 'string':
+        return object.format === 'date-time' ? 'XSDDATETIME_Z' : 'string';
+    }
+  }
+
+  parseObject(
+    object: OpenAPIV3.NonArraySchemaObject,
+    context: string
+  ): ABAPgen.StructuredType | void {
+    if (!object || !object?.properties) {
+      return;
+    }
+
+    const components = Object.entries(object.properties)
+      .map(
+        ([key, value]) =>
+          this.parseReference(value as OpenAPIV3.ReferenceObject, key) ||
+          this.parseSchema(value as OpenAPIV3.SchemaObject, key) ||
+          ''
+      )
+      .filter((o) => o) as Array<ABAPgen.Component>;
+
+    return make.structured_type(context,components );
+  }
+  getABAPstructureType(segments: Array<string>): string {
+    return segments.map((s) => toSnakeCase(s)).join('-');
+  }
+  parseReference(
+    ref: OpenAPIV3.ReferenceObject,
+    context: string
+  ): ABAPgen.Component | ABAPgen.Type | void {
+    if (!ref?.$ref) {
+      return;
+    }
+    this.parseReferenceType(ref?.$ref);
+    const segments = make.ref_segments(ref.$ref);
+    const type = this.getABAPstructureType(segments);
+    return context ? { [context]: { type } } : { type };
+  }
+
+  override parseReferenceType($ref: string): void {
+    if (!super.parseReferenceType($ref)) {
+      return;
+    }
+
+    const segments = make.ref_segments($ref);
+
+    if (segments.length !== 3) {
+      throw 'Unexpected reference';
+    }
+
+    // search for structure type
+    const components = this.structureTypesMap.get(
+      this.getABAPstructureType(segments.slice(0, 2))
+    )?.structure_components;
+    if (!components) {
+      return;
+    }
+
+    const [components_key, type_key, ref_key] = segments;
+    switch (components_key) {
+      case 'components':
+        switch (type_key) {
+          case 'responses':
+            components.push(
+              this.parseResponse(
+                this.openapi?.components?.responses?.[ref_key],
+                ref_key
+              ) as ABAPgen.Component
+            );
+            break;
+          case 'schemas':
+            components.push(
+              this.parseSchema(
+                this.openapi?.components?.schemas?.[ref_key],
+                ref_key
+              ) as ABAPgen.Component
+            );
+            break;
+          default:
+            break;
+        }
+
+        break;
+
+      default:
+        break;
+    }
   }
 }

@@ -1,31 +1,35 @@
 import { RecordOrArray } from './common';
+import { has_comments as base } from '@abapify/abapgen-common';
 
-export type Types = RecordOrArray<Record<string, Type> | StructuredType, 'types'>;
+export type Types = RecordOrArray<Component, 'types'>;
 
 interface ABAPtype {
   length?: number;
   decimals?: number;
 }
 
-export type Type =
+type Base<T extends object> = T & base;
+
+export type Type = base &
   //   1. TYPES { {dtype[(len)] TYPE abap_type [DECIMALS dec]}
   //   | {dtype TYPE abap_type [LENGTH len] [DECIMALS dec]}}.
-  | ({ type: string } & ABAPtype)
-  | { type: Record<string, ABAPtype> }
-  // 2. TYPES dtype { {TYPE [LINE OF] type}
-  //           | {LIKE [LINE OF] dobj}  }.
-  // 3. TYPES ref_type { {TYPE REF TO type}
-  //                 | {LIKE REF TO dobj} }.
-  | Partial<
-      Record<
-        'type' | 'like',
-        | 'string'
-        | { line: { of: string } }
-        | { ref: { to: string } }
-        | Partial<Record<'line of' | 'ref to', string>>
+  (| ({ type: string } & ABAPtype)
+    | { type: Record<string, ABAPtype> }
+    // 2. TYPES dtype { {TYPE [LINE OF] type}
+    //           | {LIKE [LINE OF] dobj}  }.
+    // 3. TYPES ref_type { {TYPE REF TO type}
+    //                 | {LIKE REF TO dobj} }.
+    | Partial<
+        Record<
+          'type' | 'like',
+          | 'string'
+          | { line: { of: string } }
+          | { ref: { to: string } }
+          | Partial<Record<'line of' | 'ref to', string>>
+        >
       >
-    >
-  | TableType;
+    | TableType
+  );
 
 // 4. TYPES BEGIN OF struc_type.
 //     ...
@@ -34,15 +38,16 @@ export type Type =
 //     INCLUDE {TYPE|STRUCTURE} ...
 //     ...
 //   TYPES END OF struc_type.
-type Component = Record<string, Type>;
+type ArrayElementType<ArrayType extends Array<unknown>> = ArrayType[number];
+
+export type Component = Record<string, Type> | StructuredType;
+export type Components = Array<
+  Record<string, Type> | ArrayElementType<StructuredType>
+>;
 
 //type Tree = Record<string,{tree: Tree}>;
 export type StructuredType = Array<
-  | { begin: { of: string } }
-  | StructuredType
-  | Component
-  | { end: { of: string } }
-  | string
+  Base<{ begin: { of: string } }> | Component | { end: { of: string } } | string
 >;
 
 // 5. TYPES table_type { {TYPE tabkind OF [REF TO] type}

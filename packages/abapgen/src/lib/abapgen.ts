@@ -1,4 +1,4 @@
-import {has_comments, $comment } from '@abapify/abapgen-common';
+import { has_comments, $comment } from '@abapify/abapgen-common';
 
 interface Options {
   end_of_line: string;
@@ -56,16 +56,13 @@ class codegen {
   }
 
   from_array(code: Array<CodeUnit>, options?: Options) {
-    const control_element = code[0].toString();
-
-    // start of chain
-    const is_chain = control_element === ':';
-
     // is_chain && this.chain_level++;
     this.array_level++;
 
     const result = code
       .map((code, index, array) => {
+        const is_chain = !index && typeof code === 'string' && code === ':';
+
         let array_separator = options?.end_of_line || '';
 
         const is_last = index + 1 === array.length;
@@ -74,7 +71,7 @@ class codegen {
         // but in case if it's a last element of chain, but there is another chain on top - it should inherit parent
         if (
           // no comma after chain trigger (:)
-          (is_chain && index === 0) ||
+          is_chain ||
           // we also keep it blank for last element of nested array
           (this.array_level > 1 && is_last)
         ) {
@@ -90,8 +87,6 @@ class codegen {
       .join('\n');
 
     this.array_level--;
-
-    // is_chain && this.chain_level--;
 
     return result;
   }
