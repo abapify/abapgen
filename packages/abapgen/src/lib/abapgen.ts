@@ -4,7 +4,7 @@ interface Options {
   end_of_line: string;
 }
 
-type CodeUnit = (object & has_comments) | string | Array<CodeUnit>;
+type CodeUnit = (object | has_comments) | string | Array<CodeUnit>;
 
 class codegen {
   // chain_level = 0;
@@ -58,9 +58,11 @@ class codegen {
   fetch_comments(code: CodeUnit): Partial<Record<'before' | 'after', string>> {
     let comments = {};
     if (typeof code === 'object' && !Array.isArray(code)) {
+      const code_comments = code as has_comments;
+
       comments = {
-        before: code[$comment.before] || '',
-        after: code[$comment.after] || '',
+        before: code_comments[$comment.before] || '',
+        after: code_comments[$comment.after] || '',
       };
     }
     return comments;

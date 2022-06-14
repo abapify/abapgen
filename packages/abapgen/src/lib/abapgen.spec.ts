@@ -1,11 +1,12 @@
 import abapgen from './abapgen';
 import test from '../../../abapgen-types/src/lib/abapgen-types.spec';
+import { $comment } from '@abapify/abapgen-common';
 //import test from '@abapify/abapgen-types/src/lib/abapgen-types.spec'
 
 describe('interfaces', () => {
   it('Interface defintion', () => {
     expect(abapgen(test.simple_interface)).toEqual(
-`"test comment before
+      `"test comment before
 interface lif_interface public. "test comment after
 types string_property type string.
 types:
@@ -27,3 +28,5 @@ endinterface.`
     );
   });
 });
+
+console.log(abapgen({ type: 'string', [$comment.before]: 'test' }));
