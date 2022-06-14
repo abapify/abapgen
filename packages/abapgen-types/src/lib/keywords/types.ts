@@ -10,26 +10,28 @@ interface ABAPtype {
 
 type Base<T extends object> = T & base;
 
-export type Type = base &
-  //   1. TYPES { {dtype[(len)] TYPE abap_type [DECIMALS dec]}
-  //   | {dtype TYPE abap_type [LENGTH len] [DECIMALS dec]}}.
-  (| ({ type: string } & ABAPtype)
-    | { type: Record<string, ABAPtype> }
-    // 2. TYPES dtype { {TYPE [LINE OF] type}
-    //           | {LIKE [LINE OF] dobj}  }.
-    // 3. TYPES ref_type { {TYPE REF TO type}
-    //                 | {LIKE REF TO dobj} }.
-    | Partial<
-        Record<
-          'type' | 'like',
-          | 'string'
-          | { line: { of: string } }
-          | { ref: { to: string } }
-          | Partial<Record<'line of' | 'ref to', string>>
-        >
+
+export type SimpleType = base &
+//   1. TYPES { {dtype[(len)] TYPE abap_type [DECIMALS dec]}
+//   | {dtype TYPE abap_type [LENGTH len] [DECIMALS dec]}}.
+(| ({ type: string } & ABAPtype)
+  | { type: Record<string, ABAPtype> }
+  // 2. TYPES dtype { {TYPE [LINE OF] type}
+  //           | {LIKE [LINE OF] dobj}  }.
+  // 3. TYPES ref_type { {TYPE REF TO type}
+  //                 | {LIKE REF TO dobj} }.
+  | Partial<
+      Record<
+        'type' | 'like',
+        | 'string'
+        | { line: { of: string } }
+        | { ref: { to: string } }
+        | Partial<Record<'line of' | 'ref to', string>>
       >
-    | TableType
-  );
+    >
+  | TableType
+);
+export type Type = SimpleType | TableType
 
 // 4. TYPES BEGIN OF struc_type.
 //     ...

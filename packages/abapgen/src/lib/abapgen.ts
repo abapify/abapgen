@@ -9,12 +9,20 @@ type CodeUnit = (object & has_comments) | string | Array<CodeUnit>;
 class codegen {
   // chain_level = 0;
   array_level = 0;
-  from(code: CodeUnit, options?: Options): string {
-    return (
-      (Array.isArray(code) && this.from_array(code, options)) ||
-      (typeof code === 'object' && this.from_object(code, options)) ||
-      code.toString() + (options?.end_of_line || '')
-    );
+  from(code: CodeUnit | undefined, options?: Options): string {
+    if (Array.isArray(code)) {
+      return this.from_array(code, options);
+    } else if (typeof code === 'object') {
+      return this.from_object(code, options);
+    } else {
+      return code?.toString() + (options?.end_of_line || '');
+    }
+
+    // return (
+    //   (Array.isArray(code) &&  ||
+    //   (typeof code === 'object' && this.from_object(code, options)) ||
+    //   code?.toString() + (options?.end_of_line || '')
+    // );
   }
 
   from_object(code: object, options?: Options): string {
@@ -25,21 +33,24 @@ class codegen {
           // if value is boolean and true - we'll just output the key
           [
             result,
-            key,
+            // array needs to start with a new line if it's an object field
+            key + (Array.isArray(value) ? '\n' : ''),
             typeof value === 'boolean' && value ? '' : this.from(value),
           ]
             .filter((word) => word)
-            // in general everything needs to be separated by space
             .join(' ')
             //start of array may not have spaces in front of :
-            .replace(/\s*:/g, ':'),
+            .replace(/\s*:/g, ':')
+            // no manual indent - code must use some formatter later
+            .replace(/^\s*/gm, '')
+            .replace(/\s\s+/g, ' '),
         ''
       ) + (options?.end_of_line || '');
 
     // fetch comments from object definition
 
     const comments = this.fetch_comments(code);
-    return `${comments.before ? `" ${comments.before}\n` : ''}${result}${
+    return `${comments.before ? `"${comments.before}\n` : ''}${result}${
       comments.after ? ` "${comments.after}` : ''
     }`;
   }
@@ -56,12 +67,44 @@ class codegen {
   }
 
   from_array(code: Array<CodeUnit>, options?: Options) {
+    let control_separator: string;
+
+    // extract array separator
+    if (code[0]?.toString().startsWith('&')) {
+      control_separator = code.shift()?.toString().substring(1) || '';
+      // } else {
+      //   array_separator = this.array_level ? ',' : '.';
+    }
+
+    // // extract chain indicator
+    // const chain_trigger =
+    //   code[0]?.toString() === ':' ? code.shift() + '\n' : '';
+
+    // const result =
+    //   chain_trigger +
+    //   code
+    //     .map((code, index, array) => {
+    //       index === 0 && this.array_level++;
+    //       index + 1 === array.length && this.array_level--;
+
+    //       let end_of_line = array_separator;
+    //       if (end_of_line === undefined) {
+    //         end_of_line = this.array_level > 1 ? ',' : '.';
+    //       }
+
+    //       return this.from(code, { end_of_line });
+    //     })
+    //     .join('\n');
+    // // this.array_level--;
+    // return result;
+
     // is_chain && this.chain_level++;
     this.array_level++;
 
     const result = code
       .map((code, index, array) => {
         const is_chain = !index && typeof code === 'string' && code === ':';
+        // if (is_chain) {has_chain = true}
 
         let array_separator = options?.end_of_line || '';
 
@@ -77,12 +120,16 @@ class codegen {
         ) {
           // keep it blank
         } else if (this.array_level > 1) {
-          array_separator = ',';
+          array_separator =
+            control_separator === undefined ? ',' : control_separator;
         } else {
           array_separator = '.';
         }
 
-        return this.from(code, { end_of_line: array_separator });
+        return (
+          //`${!index && !is_chain ? '\n' : ''}` +
+          this.from(code, { end_of_line: array_separator })
+        );
       })
       .join('\n');
 

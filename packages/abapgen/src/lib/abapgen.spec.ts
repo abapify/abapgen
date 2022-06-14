@@ -5,7 +5,7 @@ import test from '../../../abapgen-types/src/lib/abapgen-types.spec';
 describe('interfaces', () => {
   it('Interface defintion', () => {
     expect(abapgen(test.simple_interface)).toEqual(
-`" test comment before
+`"test comment before
 interface lif_interface public. "test comment after
 types string_property type string.
 types:
@@ -18,6 +18,11 @@ string_property type string,
 end of nested_type,
 end of structured_type,
 string_table type standard table of string with empty key.
+methods:
+do_this,
+do_that importing
+p1 type string
+p2 type string.
 endinterface.`
     );
   });

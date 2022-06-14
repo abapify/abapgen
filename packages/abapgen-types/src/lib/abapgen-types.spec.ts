@@ -30,20 +30,31 @@ class samples {
     with: 'empty key',
   };
 
-  static simple_interface: Interface = [
+  static simple_interface: Interface = [    
     {
       [$comment.before]: 'test comment before',
       interface: 'lif_interface',
-      public: true,      
+      public: true,
       [$comment.after]: 'test comment after',
     },
-    { types: samples.string_property },
-    {types:[""]},
-    { types: [
+    { types: samples.string_property },    
+    {
+      types: [
         ':',
         { string_type2: samples.string_type_decalration },
         ...samples.structure_type,
         { string_table: samples.string_table_type },
+      ],
+    },
+    {
+      methods: [
+        ':',
+        { do_this: {} },
+        {
+          do_that: {
+            importing: ["&",{ p1: { type: 'string' } }, { p2: { type: 'string' } }],
+          },
+        },
       ],
     },
     'endinterface',

@@ -58,14 +58,20 @@ abstract class make {
     type: string,
     context: string
   ): ABAPgen.Type | Record<string, ABAPgen.Type> {
-    return context ? { [$comment.before]: context, [toSnakeCase(context)]: { type } } : { type };
+    return context
+      ? { [$comment.before]: context, [toSnakeCase(context)]: { type } }
+      : { type };
   }
   static structured_type(
     type: string,
     components: ABAPgen.StructuredType
   ): ABAPgen.StructuredType {
     const name = toSnakeCase(type);
-    return [{ [$comment.before]: type, begin: { of: name } }, components, { end: { of: name } }];
+    return [
+      { [$comment.before]: type, begin: { of: name } },
+      components,
+      { end: { of: name } },
+    ];
   }
   static ref_segments($ref: string): Array<string> {
     return $ref.split('/').filter((p) => p !== '#');
@@ -115,7 +121,7 @@ class OpenapiParser<T extends OpenAPI.Document>
   }
 
   get components(): ABAPgen.InterfaceComponents {
-    return [this.output.methods, this.output.types].flat();
+    return [this.output.types, this.output.methods].flat();
   }
   get_interface({
     interface_name,
@@ -205,22 +211,53 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
               return;
             }
 
-            //parse request body
-            if (operation?.requestBody) {
-              const body = this.parseRequestBody(
-                operation?.requestBody,
-                'request'
-              );
-              // body && console.log(body);
-            }
-
-            this.output.methods.push({
+            const definition: ABAPgen.InterfaceMethods = {
               [$comment.before]: operationId,
               methods: toSnakeCase(operationId),
-              // importing,
-            });
+            };
+
+            const importing: typeof definition['importing'] = [];
+
+            // handle operation parameters
+            operation?.parameters
+              ?.map((parameter) => this.parseParameter(parameter))
+              .forEach(
+                (p) => p && importing.push(p as Record<string, ABAPgen.Type>)
+              );
+            
+            //parse request body
+            if (operation?.requestBody) {
+              const body = this.parseRequestBody(operation?.requestBody, "body");
+              body && importing.push( body as Record<string, ABAPgen.Type> )
+            }
+
+            // add importing parameters only if there's something declared 
+
+            importing.length && importing.unshift("&") && 
+              Object.assign(definition, { importing });
+
+            this.output.methods.push(definition);
           });
     });
+  }
+
+  parseParameter(
+    parameter: OpenAPIV3.ReferenceObject | OpenAPIV3.ParameterObject | undefined
+  ): ABAPgen.Component | ABAPgen.Type | void {
+    if (!parameter) {
+      return;
+    }
+
+    const { $ref } = parameter as OpenAPIV3.ReferenceObject;
+
+    if ($ref) {
+      const ref = this.parseReference(parameter as OpenAPIV3.ReferenceObject);
+      const { name } = this.$refs?.get($ref) as OpenAPIV3.ParameterObject;
+      return { [name]: ref };
+    }
+
+    const { name, schema } = parameter as OpenAPIV3.ParameterObject;
+    return this.parseSchema(schema, name);
   }
 
   parseRequestBody(
@@ -334,14 +371,14 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
       )
       .filter((o) => o) as Array<ABAPgen.Component>;
 
-    return make.structured_type(context,components );
+    return make.structured_type(context, components);
   }
   getABAPstructureType(segments: Array<string>): string {
     return segments.map((s) => toSnakeCase(s)).join('-');
   }
   parseReference(
     ref: OpenAPIV3.ReferenceObject,
-    context: string
+    context?: string
   ): ABAPgen.Component | ABAPgen.Type | void {
     if (!ref?.$ref) {
       return;
@@ -371,31 +408,41 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
       return;
     }
 
-    const [components_key, type_key, ref_key] = segments;
+    const [components_key, type_key, ref_key] = segments as [
+      'components',
+      keyof OpenAPIV3.ComponentsObject,
+      string
+    ];
+
+    type Component = ABAPgen.Components[number];
+
+    const parsers: Partial<
+      Record<
+        keyof OpenAPIV3.ComponentsObject,
+        (o: any, p: string) => Component | void | ABAPgen.Type
+      >
+    > = {
+      responses: this.parseResponse,
+      schemas: this.parseSchema,
+    };
+
     switch (components_key) {
-      case 'components':
-        switch (type_key) {
-          case 'responses':
-            components.push(
-              this.parseResponse(
-                this.openapi?.components?.responses?.[ref_key],
-                ref_key
-              ) as ABAPgen.Component
-            );
-            break;
-          case 'schemas':
-            components.push(
-              this.parseSchema(
-                this.openapi?.components?.schemas?.[ref_key],
-                ref_key
-              ) as ABAPgen.Component
-            );
-            break;
-          default:
-            break;
+      case 'components': {
+        const parser_method = parsers[type_key];
+
+        if (!parser_method) {
+          throw `"${type_key}" handler is not implemented`;
         }
 
+        components.push(
+          parser_method.call(
+            this,
+            this.openapi?.components?.[type_key]?.[ref_key],
+            ref_key
+          ) as ABAPgen.Component
+        );
         break;
+      }
 
       default:
         break;

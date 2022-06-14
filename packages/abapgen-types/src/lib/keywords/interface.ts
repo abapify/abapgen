@@ -1,6 +1,5 @@
 import base, { RecordOrArray } from './common';
-import { Types } from './types';
-
+import { Types, SimpleType } from './types';
 
 // 1. INTERFACE intf [PUBLIC].
 //     [components]
@@ -24,7 +23,6 @@ export type InterfaceComponents = Array<InterfaceMethods | InterfaceTypes>;
 
 // export type InterfaceMethods = Array<InterfaceMethod>;
 
-
 // 1. METHODS meth [ABSTRACT|FINAL]
 //               |[DEFAULT IGNORE|FAIL]
 //     [IMPORTING parameters [PREFERRED PARAMETER p]]
@@ -33,23 +31,36 @@ export type InterfaceComponents = Array<InterfaceMethods | InterfaceTypes>;
 //     [{RAISING exc1|RESUMABLE(exc1) exc2|RESUMABLE(exc2) ...}
 //     |{EXCEPTIONS exc1 exc2 ...}].
 
-interface InterfaceMethod extends base {
+export interface InterfaceMethod extends base {
   // methods?: string,
   abstract?: true;
   final?: true;
   default?: 'ignore';
   fail?: true;
-  importing?: Array<unknown>;
-  exporting?: [];
-  changing?: [];
+  importing?: MethodParameters; //& {preferred?:{parameter:string}};
+  exporting?: MethodParameters;
+  changing?: MethodParameters;
   raising?: [];
   exceptions?: [];
 }
+
+// {[value(p1)]: }
+
+// ... { VALUE(p1) | REFERENCE(p1) | p1 }
+//         typing [OPTIONAL|{DEFAULT def1}]
+//     { VALUE(p2) | REFERENCE(p2) | p2 }
+//         typing [OPTIONAL|{DEFAULT def2}]
+//     ...
+
+//type RecordOrArray2<T> = Record<string,T> | Array<Record<string,T> | void | string>
+
+export type MethodParameters = Record<string, SimpleType> | Array<Record<string,SimpleType>|string>;
 
 // {methods: "do_this", importing: [], returning: {type:{ref:{to:"string"}}} }
 // {methods: "do_that", importing: [], returning: {type:{ref:{to:"string"}}} }
 
 // {methods:[{ "do_this":{ importing: [], returning: {type:{ref:{to:"string"}}} }]
 
-
-export type InterfaceMethods = RecordOrArray<InterfaceMethod, 'methods'>;
+export type InterfaceMethods =
+  | RecordOrArray<InterfaceMethod, 'methods'>
+  | { methods: Array<Record<string, InterfaceMethod> | string> };

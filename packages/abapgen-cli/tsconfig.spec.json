@@ -5,5 +5,5 @@
     "module": "commonjs",
     "types": ["jest", "node"]
   },
-  "include": ["../../abapgen-cli/jest.config.ts", "../../abapgen-cli/**/*.test.ts", "../../abapgen-cli/**/*.spec.ts", "../../abapgen-cli/**/*.d.ts"]
+  "include": ["jest.config.ts", "**/*.test.ts", "**/*.spec.ts", "**/*.d.ts"]
 }
