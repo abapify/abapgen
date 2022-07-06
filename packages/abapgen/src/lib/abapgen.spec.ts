@@ -3,9 +3,11 @@ import test from '../../../abapgen-types/src/lib/abapgen-types.spec';
 import { $comment } from '@abapify/abapgen-common';
 //import test from '@abapify/abapgen-types/src/lib/abapgen-types.spec'
 
+const simple_interface = abapgen(test.simple_interface);
+
 describe('interfaces', () => {
   it('Interface defintion', () => {
-    expect(abapgen(test.simple_interface)).toEqual(
+    expect(simple_interface).toEqual(
       `"test comment before
 interface lif_interface public. "test comment after
 types string_property type string.
@@ -21,12 +23,12 @@ end of structured_type,
 string_table type standard table of string with empty key.
 methods:
 do_this,
-do_that importing
+do_that
+importing
 p1 type string
-p2 type string.
+p2 type string
+returning value(result) type string.
 endinterface.`
     );
   });
 });
-
-console.log(abapgen({ type: 'string', [$comment.before]: 'test' }));

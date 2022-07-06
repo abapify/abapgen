@@ -1,148 +1,115 @@
 import { has_comments, $comment } from '@abapify/abapgen-common';
 
-interface Options {
-  end_of_line: string;
+const parentMap = new WeakMap();
+// top-level call without parent
+const abapgen = (code: unknown) => ABAPgen(code);
+export default abapgen;
+
+// factory function
+function ABAPgen(code: unknown, parent?: unknown): string {
+  const proxy =
+    (Array.isArray(code) && new Proxy(code, ArrayProxy)) ||
+    (code && typeof code === 'object' && new Proxy(code, ObjectProxy));
+
+  if (proxy && typeof proxy === 'object') {
+    // fill parent map
+    parent && parentMap.set(proxy, parent);
+    return proxy.toString();
+  }
+
+  switch (typeof code) {
+    case 'boolean':
+      return '';
+    case 'string':
+      return code;
+  }
+
+  return new String(code).toString() || '';
 }
 
-type CodeUnit = (object | has_comments) | string | Array<CodeUnit>;
+const ObjectProxy: ProxyHandler<object> = {
+  get(target, p) {
+    switch (p) {
+      case 'toString':
+        return () => {
+          const comments = target as has_comments;
 
-class codegen {
-  // chain_level = 0;
-  array_level = 0;
-  from(code: CodeUnit | undefined, options?: Options): string {
-    if (Array.isArray(code)) {
-      return this.from_array(code, options);
-    } else if (typeof code === 'object') {
-      return this.from_object(code, options);
-    } else {
-      return code?.toString() + (options?.end_of_line || '');
+          const result = Reflect.ownKeys(target).reduce(
+            (result, ownKey) => {
+              // comments are processed separately
+              switch (ownKey) {
+                case $comment.after:
+                case $comment.before:
+                  return result;
+              }
+
+              return (
+                [result, ownKey, ABAPgen(Reflect.get(target, ownKey), this)]
+                  .filter((word) => word)
+                  .join(' ') //start of array may not have spaces in front of :
+                  .replace(/\s*:/g, ':')
+                  // no manual indent - code must use some formatter later
+                  .replace(/^\s*|\s*$/gm, '')                  
+                  //.replace(/\s\s+/g, ' ')
+              );
+            },
+            comments?.[$comment.before]
+              ? `"${comments?.[$comment.before]}\n`
+              : ''
+          ) as string;
+          return result;
+        };
     }
+    return Reflect.get(target, p);
+  },
+};
 
-    // return (
-    //   (Array.isArray(code) &&  ||
-    //   (typeof code === 'object' && this.from_object(code, options)) ||
-    //   code?.toString() + (options?.end_of_line || '')
-    // );
-  }
+const ArrayProxy: ProxyHandler<Array<unknown>> = {
+  get(target, p, receiver) {
+    switch (p) {
+      case 'toString':
+        return () => {
+          let chain_trigger = '\n';
+          let separator = '';
+          let end_of_array = '';
 
-  from_object(code: object, options?: Options): string {
-    // {type: "c", length: 1} => type c length 1
-    const result =
-      Object.entries(code).reduce(
-        (result, [key, value]) =>
-          // if value is boolean and true - we'll just output the key
-          [
-            result,
-            // array needs to start with a new line if it's an object field
-            key + (Array.isArray(value) ? '\n' : ''),
-            typeof value === 'boolean' && value ? '' : this.from(value),
-          ]
-            .filter((word) => word)
-            .join(' ')
-            //start of array may not have spaces in front of :
-            .replace(/\s*:/g, ':')
-            // no manual indent - code must use some formatter later
-            .replace(/^\s*/gm, '')
-            .replace(/\s\s+/g, ' '),
-        ''
-      ) + (options?.end_of_line || '');
+          if (!parentMap.has(receiver)) {
+            chain_trigger = '';
+            separator = '.';
+            end_of_array = '.';
+          }
 
-    // fetch comments from object definition
+          // even if top-level array - also comma
+          if (target[0] === ':') {
+            chain_trigger = (target.shift() + '\n') as string;
+            separator = ',';
+          }
 
-    const comments = this.fetch_comments(code);
-    return `${comments.before ? `"${comments.before}\n` : ''}${result}${
-      comments.after ? ` "${comments.after}` : ''
-    }`;
-  }
+          const result =
+            chain_trigger +
+            target.reduce((result, value, index, array) => {
+              const has_comments = value as has_comments;
 
-  fetch_comments(code: CodeUnit): Partial<Record<'before' | 'after', string>> {
-    let comments = {};
-    if (typeof code === 'object' && !Array.isArray(code)) {
-      const code_comments = code as has_comments;
+              return (
+                result +
+                // rendered array item
+                ABAPgen(value, this) +
+                // separator
+                (index + 1 === array.length ? '' : separator) +
+                // comment after
+                (has_comments?.[$comment.after]
+                  ? ` "${has_comments?.[$comment.after]}`
+                  : '') +
+                // end of line
+                (index + 1 === array.length ? '' : '\n')
+              );
+            }, '') +
+            end_of_array;
 
-      comments = {
-        before: code_comments[$comment.before] || '',
-        after: code_comments[$comment.after] || '',
-      };
+          return result;
+        };
     }
-    return comments;
-  }
+    return Reflect.get(target, p);
+  },
+};
 
-  from_array(code: Array<CodeUnit>, options?: Options) {
-    let control_separator: string;
-
-    // extract array separator
-    if (code[0]?.toString().startsWith('&')) {
-      control_separator = code.shift()?.toString().substring(1) || '';
-      // } else {
-      //   array_separator = this.array_level ? ',' : '.';
-    }
-
-    // // extract chain indicator
-    // const chain_trigger =
-    //   code[0]?.toString() === ':' ? code.shift() + '\n' : '';
-
-    // const result =
-    //   chain_trigger +
-    //   code
-    //     .map((code, index, array) => {
-    //       index === 0 && this.array_level++;
-    //       index + 1 === array.length && this.array_level--;
-
-    //       let end_of_line = array_separator;
-    //       if (end_of_line === undefined) {
-    //         end_of_line = this.array_level > 1 ? ',' : '.';
-    //       }
-
-    //       return this.from(code, { end_of_line });
-    //     })
-    //     .join('\n');
-    // // this.array_level--;
-    // return result;
-
-    // is_chain && this.chain_level++;
-    this.array_level++;
-
-    const result = code
-      .map((code, index, array) => {
-        const is_chain = !index && typeof code === 'string' && code === ':';
-        // if (is_chain) {has_chain = true}
-
-        let array_separator = options?.end_of_line || '';
-
-        const is_last = index + 1 === array.length;
-
-        // if it's chain - we separate by comma
-        // but in case if it's a last element of chain, but there is another chain on top - it should inherit parent
-        if (
-          // no comma after chain trigger (:)
-          is_chain ||
-          // we also keep it blank for last element of nested array
-          (this.array_level > 1 && is_last)
-        ) {
-          // keep it blank
-        } else if (this.array_level > 1) {
-          array_separator =
-            control_separator === undefined ? ',' : control_separator;
-        } else {
-          array_separator = '.';
-        }
-
-        return (
-          //`${!index && !is_chain ? '\n' : ''}` +
-          this.from(code, { end_of_line: array_separator })
-        );
-      })
-      .join('\n');
-
-    this.array_level--;
-
-    return result;
-  }
-}
-
-export function abapgen(code: CodeUnit) {
-  return new codegen().from(code);
-}
-
-export default (code: CodeUnit) => new codegen().from(code);

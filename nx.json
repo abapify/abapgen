@@ -14,8 +14,7 @@
       "options": {
         "cacheableOperations": [
           "build",
-          "lint",
-          "test",
+          "lint",          
           "e2e"
         ]
       }

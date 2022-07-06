@@ -7,7 +7,8 @@ import { OpenAPI, OpenAPIV3, OpenAPIV2, OpenAPIV3_1 } from 'openapi-types';
 import { $comment } from '@abapify/abapgen-common';
 import * as semver from 'semver';
 
-export default abstract class OpenapiToABAP {
+
+export abstract class OpenapiToABAP {
   // openapi: OpenAPI.Document;
 
   // constructor(openapi: OpenAPI.Document) {
@@ -49,14 +50,24 @@ interface ParseOptions {
   operations?: Array<string>;
 }
 
-interface Parser {
-  parse(options?: ParseOptions): void;
-}
 
-abstract class make {
+abstract class make {  
+  static table_type(
+    of_type: string,
+    context?: string
+  ):  ABAPgen.TableType | Record<string, ABAPgen.TableType>{
+
+    const table_type: ABAPgen.TableType = { type: "table", of: of_type, with: "empty key"};
+
+    return make.context(table_type,context) as ABAPgen.TableType | Record<string, ABAPgen.TableType> ;
+   
+  }
+  static context(type: ABAPgen.Type, context?: string) : ABAPgen.Type | Record<string,ABAPgen.Type> {
+    return context ? { [$comment.before]: context, [toSnakeCase(context)]: type } : type
+  }
   static type(
     type: string,
-    context: string
+    context?: string
   ): ABAPgen.Type | Record<string, ABAPgen.Type> {
     return context
       ? { [$comment.before]: context, [toSnakeCase(context)]: { type } }
@@ -82,7 +93,6 @@ class OpenapiParserBase {}
 
 class OpenapiParser<T extends OpenAPI.Document>
   extends OpenapiParserBase
-  implements Parser
 {
   readonly openapi: T;
 
@@ -123,20 +133,26 @@ class OpenapiParser<T extends OpenAPI.Document>
   get components(): ABAPgen.InterfaceComponents {
     return [this.output.types, this.output.methods].flat();
   }
-  get_interface({
-    interface_name,
-  }: {
-    interface_name: string;
-  }): ABAPgen.Interface {
+  get_interface(
+    input:
+      | {
+          interface_name: string;
+        }
+      | string
+  ): ABAPgen.Interface {
     return [
-      { interface: interface_name, public: true },
+      {
+        interface: typeof input === 'string' ? input : input.interface_name,
+        public: true,
+      },
       ...this.components,
       'endinterface',
     ];
   }
-  parse() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  parse(options?: ParseOptions)  {
     throw 'Method is not implemented';
-  }
+  } 
 
   createRefStructures($ref: string): void {
     // loop variables
@@ -211,12 +227,15 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
               return;
             }
 
-            const definition: ABAPgen.InterfaceMethods = {
-              [$comment.before]: operationId,
-              methods: toSnakeCase(operationId),
-            };
+            const importing: ABAPgen.InterfaceMethod['importing'] = [];
 
-            const importing: typeof definition['importing'] = [];
+            const definition: ABAPgen.InterfaceMethods = [
+              '&',
+              {
+                [$comment.before]: operationId,
+                methods: toSnakeCase(operationId),
+              },
+            ];
 
             // handle operation parameters
             operation?.parameters
@@ -224,17 +243,35 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
               .forEach(
                 (p) => p && importing.push(p as Record<string, ABAPgen.Type>)
               );
-            
+
             //parse request body
             if (operation?.requestBody) {
-              const body = this.parseRequestBody(operation?.requestBody, "body");
-              body && importing.push( body as Record<string, ABAPgen.Type> )
+              const body = this.parseRequestBody(
+                operation?.requestBody,
+                'body'
+              );
+              body && importing.push(body as Record<string, ABAPgen.Type>);
             }
 
-            // add importing parameters only if there's something declared 
+            // add importing parameters
+            importing.length &&
+              importing.unshift('&') &&
+              definition.push({ importing });
 
-            importing.length && importing.unshift("&") && 
-              Object.assign(definition, { importing });
+            //parse response
+            if (operation?.responses) {
+              const response = this.parseResponse(operation?.responses?.[200]);
+              response &&
+                definition.push({
+                  returning: {
+                    'value(result)': response as ABAPgen.SimpleType,
+                  },
+                });
+            }
+
+            // raising statement
+            // currently let's just keep standatd exception
+            definition.push({ raising: 'cx_static_check' });
 
             this.output.methods.push(definition);
           });
@@ -279,8 +316,8 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
 
   parseResponse(
     response: OpenAPIV3.ReferenceObject | OpenAPIV3.ResponseObject | undefined,
-    context: string
-  ): ABAPgen.Component | ABAPgen.Type | void {
+    context?: string
+  ): ABAPgen.Component | ABAPgen.Type | void | undefined {
     if (!response) {
       return;
     }
@@ -297,7 +334,7 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
   }
   parseSchema(
     schema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject | void,
-    context: string
+    context?: string
   ): ABAPgen.Type | ABAPgen.StructuredType | void | ABAPgen.Component {
     if (!schema) {
       return;
@@ -310,19 +347,23 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
   }
   parseArray(
     array: OpenAPIV3.ArraySchemaObject,
-    context: string
-  ): ABAPgen.Type | ABAPgen.StructuredType | void {
+    context?: string
+  ): ABAPgen.TableType | Record<string, ABAPgen.TableType> | void {
     if (array?.type !== 'array') {
       return;
     }
-    return (
-      this.parseReference(array.items as OpenAPIV3.ReferenceObject, context) ||
-      this.parseSchema(array.items as OpenAPIV3.SchemaObject, context)
-    );
+
+    const type = (
+      this.parseReference(array.items as OpenAPIV3.ReferenceObject) ||
+      this.parseSchema(array.items as OpenAPIV3.SchemaObject)
+    ) as { type: string};
+
+    return make.table_type(type.type, context);
+
   }
   parseNonArray(
     object: OpenAPIV3.NonArraySchemaObject,
-    context: string
+    context?: string
   ): ABAPgen.Type | ABAPgen.StructuredType | void {
     if (!object) {
       return;
@@ -330,7 +371,9 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
 
     switch (object.type) {
       case 'object':
-        return this.parseObject(object, context);
+        if (context){
+          return this.parseObject(object, context);
+        }        
     }
 
     const type = this.getABAPtype(object);
@@ -419,6 +462,7 @@ class ParserOpenAPIV3 extends OpenapiParser<OpenAPIV3.Document> {
     const parsers: Partial<
       Record<
         keyof OpenAPIV3.ComponentsObject,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (o: any, p: string) => Component | void | ABAPgen.Type
       >
     > = {

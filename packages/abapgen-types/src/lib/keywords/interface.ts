@@ -1,4 +1,4 @@
-import base, { RecordOrArray } from './common';
+import base, { RecordOrArray, StringArray } from './common';
 import { Types, SimpleType } from './types';
 
 // 1. INTERFACE intf [PUBLIC].
@@ -32,7 +32,7 @@ export type InterfaceComponents = Array<InterfaceMethods | InterfaceTypes>;
 //     |{EXCEPTIONS exc1 exc2 ...}].
 
 export interface InterfaceMethod extends base {
-  // methods?: string,
+  methods?: string | Record<string, Exclude<InterfaceMethod, 'methods'>>;
   abstract?: true;
   final?: true;
   default?: 'ignore';
@@ -40,9 +40,29 @@ export interface InterfaceMethod extends base {
   importing?: MethodParameters; //& {preferred?:{parameter:string}};
   exporting?: MethodParameters;
   changing?: MethodParameters;
-  raising?: [];
+  returning?: ValueType<string> | Record<string,SimpleType>;
+  raising?: Array<string> | string;
   exceptions?: [];
 }
+
+// const i: Interface = [
+//   { interface: 'lif_test' },
+//   {
+//     methods: [
+//       {
+//         do_this: [
+//           {
+//             importing: [{ p1: { type: 'string' } }, { p2: { type: 'string' } }],
+//           },
+//           {
+//             returning: { 'value(result)': { type: 'string' } },
+//           },
+//         ],
+//       },
+//     ],
+//   },
+//   'endinterface',
+// ];
 
 // {[value(p1)]: }
 
@@ -54,7 +74,9 @@ export interface InterfaceMethod extends base {
 
 //type RecordOrArray2<T> = Record<string,T> | Array<Record<string,T> | void | string>
 
-export type MethodParameters = Record<string, SimpleType> | Array<Record<string,SimpleType>|string>;
+export type MethodParameters =
+  | Record<string, SimpleType>
+  | Array<Record<string, SimpleType> | string>;
 
 // {methods: "do_this", importing: [], returning: {type:{ref:{to:"string"}}} }
 // {methods: "do_that", importing: [], returning: {type:{ref:{to:"string"}}} }
@@ -63,4 +85,13 @@ export type MethodParameters = Record<string, SimpleType> | Array<Record<string,
 
 export type InterfaceMethods =
   | RecordOrArray<InterfaceMethod, 'methods'>
-  | { methods: Array<Record<string, InterfaceMethod> | string> };
+  | Array<InterfaceMethod | string>
+  | {
+      methods: Array<
+        Record<string, InterfaceMethod | StringArray<InterfaceMethod>> | string
+      >;
+    };
+
+// ... RETURNING VALUE(r) typing
+type Value<value extends string> = `value(${value})`;
+export type ValueType<value extends string> = Record<Value<value>, SimpleType>;

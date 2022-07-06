@@ -55,9 +55,9 @@ export type StructuredType = Array<
 // 5. TYPES table_type { {TYPE tabkind OF [REF TO] type}
 //                  | {LIKE tabkind OF dobj} }
 //                      [tabkeys][INITIAL SIZE n].
-type TableTypeSimple = (
+type TableTypeSimple =  base & (
   | { type?: TableKind; of: string | { ref: { to: string } } }
-  | { like?: TableKind; of: string }
+  | { like?: TableKind; of: string }  
 ) & { with?: 'default key' | 'empty key'; initial?: { size: number } };
 type TableTypeWithKeys = [TableTypeSimple, TableKeys];
 export type TableType = TableTypeSimple | TableTypeWithKeys;

@@ -1,3 +1,4 @@
-export function abapgenCli(): string {
-  return 'abapgen-cli';
-}
+import { generate } from '../commands/generate';
+
+
+generate.parseAsync(process.argv);
